@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Field Lab · Magnet experiments</title><link rel="stylesheet" href="style.css">
+  <script src="model.js" defer></script><script src="lessons.js" defer></script><script src="experiments.js" defer></script>
+  <script src="state.js" defer></script><script src="visuals.js" defer></script><script src="game.js" defer></script><script src="design-model.js" defer></script><script src="design.js" defer></script><script src="playground-model.js" defer></script><script src="playground.js" defer></script><script src="grading.js" defer></script><script src="book.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#lesson-heading">Skip to experiment</a>
+  <header><span class="brand">FIELD LAB <small>CHAPTER 03</small></span><span id="score" hidden></span><details class="settings"><summary>About & settings</summary><div>
+    <p>Explore the field shapes in M. N. Wilson’s <em>Superconducting Magnets</em>, chapter 3, pp. 20–40.</p>
+    <p><strong>Educational models only. Not validated engineering design or a safety assessment.</strong></p>
+    <p>Make a prediction, adjust a winding, compare the fields, then explain and try a fresh case. Mistakes cost nothing. All sections are open.</p>
+    <p>B is magnetic field, measured in tesla (T). J is current per winding area. NI is turns × current. The bore is the useful empty opening.</p>
+    <label class="check-label"><input id="xp-toggle" type="checkbox"> Show XP for participation</label><p>Progress records completed exercises, not a certification of mastery. It is saved in this browser when storage is available.</p>
+    <button id="restart" type="button">Restart chapter…</button>
+  </div></details></header>
+  <div class="chapter-bar"><nav id="sections" aria-label="Chapter sections"></nav><label class="section-picker" for="section-select">Chapter 3 <select id="section-select"></select></label><div class="progress-wrap"><label id="progress-label" for="progress"></label><progress id="progress" max="28" value="0"></progress></div></div>
+  <main><p id="storage-status" role="status"></p><div class="title-row"><div><p id="part-label" class="eyebrow"></p><h1 id="lesson-heading" tabindex="-1"></h1></div><button id="page-ref" class="quiet" type="button" aria-controls="book-reference"></button></div>
+    <nav id="stages" aria-label="Learning stages"><button type="button" data-stage="0">1 · Experiment</button><button type="button" data-stage="1">2 · Explain</button><button type="button" data-stage="4">3 · New case</button></nav>
+    <article id="mission" aria-labelledby="lesson-heading"></article><section id="playground" hidden></section><section id="design-desk" hidden></section><div id="integrated-next" hidden></div><section id="book-reference" aria-labelledby="book-heading"></section>
+  </main><div id="announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+  <footer>Field shapes & winding configurations <span>Explore · compare · explain</span></footer>
+</body></html>

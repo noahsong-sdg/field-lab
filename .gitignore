@@ -1,0 +1,7 @@
+node_modules/
+*preview.png
+
+# Local design notes
+IMPLEMENTATION-NOTES.md
+UX-REVIEW.md
+.DS_Store

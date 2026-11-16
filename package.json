@@ -1,0 +1,14 @@
+{
+  "name": "field-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Educational magnet field experiments",
+  "scripts": {
+    "serve": "python3 -m http.server 8765 --bind 127.0.0.1",
+    "test": "node test.cjs && node design-test.cjs && node playground-test.cjs && node integrated-test.cjs && node references-test.cjs",
+    "test:unit": "FIELD_LAB_UNIT_ONLY=1 node test.cjs && FIELD_LAB_UNIT_ONLY=1 node design-test.cjs && FIELD_LAB_UNIT_ONLY=1 node playground-test.cjs && FIELD_LAB_UNIT_ONLY=1 node integrated-test.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}
