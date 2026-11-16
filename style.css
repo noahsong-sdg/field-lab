@@ -1,5 +1,4 @@
 :root {
-  /* Shared palette with operations/conversation-pipeline/src/styles.css. */
   --paper: oklch(13.5% 0.012 248); --paper-deep: oklch(17% 0.013 248);
   --panel: oklch(17.5% 0.014 248); --surface-raised: oklch(21.5% 0.018 248);
   --ink: oklch(94% 0.012 82); --muted: oklch(70% 0.018 248);
@@ -93,3 +92,6 @@ input[type=range]::-moz-range-thumb{width:14px;height:14px;border:2px solid var(
 #series-results{font-size:.875rem}#integrated-next{margin-top:24px;border-top:1px solid var(--line);padding-top:16px}
 @media(max-width:480px){#stages button{flex:1 1 28%;padding:8px 4px;font-size:.75rem}}
 #book-reference{margin-top:40px;padding-top:24px;border-top:1px solid var(--axis);font-size:.875rem;min-width:0;scroll-margin-top:16px}.book-toolbar{display:flex;gap:18px;flex-wrap:wrap}.book-toolbar label{display:grid;gap:6px;min-width:0;flex:1 1 200px}.book-toolbar select{width:100%;min-width:0}#book-viewport{max-height:650px;overflow:auto;background:#fff;border:1px solid var(--axis);overscroll-behavior:contain}#book-image{display:block;width:100%;max-width:none;height:auto}#book-guide{max-width:85ch;line-height:1.7}#book-heading:focus,#book-viewport:focus{outline:2px solid var(--blue);outline-offset:4px}#book-reference .actions{flex-wrap:wrap}#book-reference button{min-height:44px}#book-reference .source-note{overflow-wrap:anywhere}@media(min-width:901px){#book-viewport{max-width:900px}}@media(max-width:480px){#book-viewport{max-height:520px}}
+
+/* Keep the first control within reach below the mobile diagram. */
+@media(max-width:480px){.sketch .viz{max-height:120px}}

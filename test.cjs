@@ -41,6 +41,7 @@ if (process.env.FIELD_LAB_UNIT_ONLY !== '1') {
 const {chromium}=require(process.env.FIELD_LAB_PLAYWRIGHT || 'playwright');
 (async () => {
   const browser = await chromium.launch({ headless:true, executablePath:process.env.FIELD_LAB_BROWSER || undefined });
+  try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto('http://127.0.0.1:8765');
@@ -165,7 +166,7 @@ const {chromium}=require(process.env.FIELD_LAB_PLAYWRIGHT || 'playwright');
   }
   assert.deepEqual(errors, []);
   console.log('PASS: responsive layouts 1280/736/440/320, minimum 44px control heights, first-view control, 200% text reflow and SVG label bounds; no runtime errors');
-  await browser.close();
+  } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });
 
 } else console.log('PASS: '+__filename.split('/').pop()+' model assertions (browser skipped)');
