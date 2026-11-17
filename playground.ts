@@ -106,22 +106,52 @@ type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>
     band: number[] | null = null,
     markers: { x: number; y: number }[] = [],
   ) {
-    const w = Math.max(230, $(id).clientWidth),
-      scale = parseFloat(getComputedStyle(root).fontSize) / 14,
-      h = 220 * scale,
-      l = 52 * scale,
-      r = w - 14,
-      t = 14,
-      b = h - 32 * scale;
+    const container = $(id),
+      w = Math.max(230, container.clientWidth),
+      scale = parseFloat(getComputedStyle(root).fontSize) / 14;
+    const yTicks = [0, ymax / 2, ymax];
+    const xTicks = [xmin, (xmin + xmax) / 2, xmax];
+    // Measure real SVG glyphs with the inherited chart font, not a fixed gutter.
+    // Font fallback and enlarged text differ across browsers and operating systems.
+    const ruler = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ruler.classList.add('viz');
+    ruler.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none';
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    ruler.append(text);
+    container.append(ruler);
+    const measure = (label: string) => {
+      text.textContent = label;
+      return text.getBBox().width;
+    };
+    let yLabels = yTicks.map((v) => v.toFixed(1));
+    if (Math.max(...yLabels.map(measure)) > w * 0.45)
+      yLabels = yTicks.map((v) => (v === 0 ? '0' : v.toExponential(1)));
+    const yWidth = Math.max(...yLabels.map(measure));
+    const xWidths = xTicks.map((v) => measure(v.toFixed(0)));
+    const fontHeight = parseFloat(getComputedStyle(text).fontSize);
+    ruler.remove();
+    const padding = 8,
+      gap = 8,
+      l = Math.max(52 * scale, yWidth + gap + padding),
+      r = w - padding,
+      span = r - l,
+      showMiddle = span / 2 > Math.max(xWidths[0], xWidths[2]) + xWidths[1] / 2 + gap,
+      staggerEnds = xWidths[0] + xWidths[2] + gap > span,
+      h = 220 * scale + (staggerEnds ? fontHeight + gap : 0),
+      t = Math.max(14, fontHeight),
+      b = 220 * scale - 32 * scale;
     const x = (v: number) => l + ((v - xmin) / (xmax - xmin)) * (r - l),
       y = (v: number) => b - (v / ymax) * (b - t);
     let d = band
       ? `<rect x="${x(Math.max(xmin, band[0]))}" y="${t}" width="${Math.max(0, x(Math.min(xmax, band[1])) - x(Math.max(xmin, band[0])))}" height="${b - t}" fill="var(--blue)" opacity=".09"/>`
       : '';
-    for (const v of [0, ymax / 2, ymax])
-      d += `<line x1="${l}" x2="${r}" y1="${y(v)}" y2="${y(v)}" class="design-gridline"/><text x="${l - 5}" y="${y(v) + 4}" text-anchor="end">${v.toFixed(1)}</text>`;
-    for (const v of [xmin, (xmin + xmax) / 2, xmax])
-      d += `<text x="${x(v)}" y="${b + 22 * scale}" text-anchor="${v === xmin ? 'start' : v === xmax ? 'end' : 'middle'}">${v.toFixed(0)}</text>`;
+    for (const [i, v] of yTicks.entries())
+      d += `<line x1="${l}" x2="${r}" y1="${y(v)}" y2="${y(v)}" class="design-gridline"/><text x="${l - gap}" y="${y(v) + 4}" text-anchor="end">${yLabels[i]}</text>`;
+    for (const [i, v] of xTicks.entries()) {
+      if (i === 1 && !showMiddle) continue;
+      const offset = staggerEnds && i === 2 ? fontHeight + gap : 0;
+      d += `<text x="${x(v)}" y="${b + 22 * scale + offset}" text-anchor="${i === 0 ? 'start' : i === 2 ? 'end' : 'middle'}">${v.toFixed(0)}</text>`;
+    }
     for (const c of curves)
       d += `<path d="${c.points.map(([a, b], i) => `${i ? 'L' : 'M'}${x(a)},${y(b)}`).join(' ')}" fill="none" stroke="${c.color}" stroke-width="2" ${c.dash ? 'stroke-dasharray="5 4"' : ''}/>`;
     for (const m of markers)

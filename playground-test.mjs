@@ -166,6 +166,25 @@ export async function runBrowserChecks(browser, testInfo) {
         .map((el) => el.textContent),
     );
     assert.deepEqual(clipped, []);
+    const overlapping = await page.locator('#playground svg').evaluateAll((svgs) =>
+      svgs.flatMap((svg) => {
+        const labels = Array.from(svg.querySelectorAll('text'));
+        return labels.flatMap((label, i) => {
+          const a = label.getBoundingClientRect();
+          return labels
+            .slice(i + 1)
+            .filter((other) => {
+              const b = other.getBoundingClientRect();
+              return (
+                Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+                Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1
+              );
+            })
+            .map((other) => [label.textContent, other.textContent]);
+        });
+      }),
+    );
+    assert.deepEqual(overlapping, [], 'enlarged chart labels do not collide');
     assert.deepEqual(errors, []);
     console.log(
       'PASS: keep/restore/reset, constraints, invalid entry, probes, imperfections, material switching, resolution, focus, mobile and 200% text; no runtime errors',
