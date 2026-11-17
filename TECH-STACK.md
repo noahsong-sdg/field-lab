@@ -29,6 +29,8 @@ TypeScript improves correctness and maintenance, not numerical execution speed.
 A language rewrite is not justified by the current workload. Keep the portable
 browser models unless measured workloads demonstrate a need for another kernel.
 
+See [PERFORMANCE.md](PERFORMANCE.md) for measured responsiveness and reproduction.
+
 Worker computation and numerical parity are regression-tested, including the
 production build's bundled worker URL. Target-device profiling remains useful;
 the worker avoids UI-thread blocking but does not promise faster numerical work.
