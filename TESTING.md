@@ -19,6 +19,7 @@ npm run test:unit
 npm run build
 npx playwright install chromium firefox webkit
 npm run test:browser
+npm run test:production
 ```
 
 Playwright manages its own local server. Do not start a second server for the test
@@ -56,3 +57,11 @@ limitations intact when changing the implementation.
 For local diagnostics only, set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an existing
 Chromium binary. CI intentionally uses Playwright's pinned browsers instead; a
 system-browser pass does not replace verification against those pinned versions.
+
+## Worker correctness
+
+`test:unit` compares complete analysis and field-map results against the original
+model path across varied configurations, including resolution 128. Browser tests
+exercise real worker parity, failure fallback, pending/rapid-update safety and
+reset behavior. `test:production` builds the app and verifies that each desktop
+engine loads the emitted worker asset and updates the actual interface.

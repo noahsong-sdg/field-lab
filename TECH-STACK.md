@@ -15,8 +15,13 @@ not run the physics.
   are required evidence, not a substitute for physical-device validation.
 - Chapter restart resets integrated stage controls and kept designs as well as
   progress. A dedicated browser regression guards this behavior.
-- One-entry analysis caching avoids repeated physics analysis for unchanged
-  state, including layout redraws. Every state input participates in invalidation.
+- A module Web Worker computes numerical analysis and field-map samples away
+  from the UI thread. One active job and one replaceable latest snapshot bound
+  work; full-state keys reject stale results. One-result caching reuses physics
+  and field-map vectors on layout redraws.
+- Keep and grading cannot use stale/pending results. Worker startup, runtime,
+  message and timeout failures use the same numerical code synchronously.
+  A visible status identifies fallback; it favors functionality, not performance.
 
 ## Deliberate choices and remaining work
 
@@ -24,12 +29,12 @@ TypeScript improves correctness and maintenance, not numerical execution speed.
 A language rewrite is not justified by the current workload. Keep the portable
 browser models unless measured workloads demonstrate a need for another kernel.
 
-Field-map rendering still evaluates its samples on the main thread. Before a
-larger simulation or higher-resolution workload, profile actual target devices,
-then consider separating probe-only updates, caching field maps, and moving
-numerical analysis into a Web Worker. WebAssembly/C++ is a later option for a
-measured kernel bottleneck; Julia is more appropriate for a separate research
-solver than as a mandatory browser runtime.
+Worker computation and numerical parity are regression-tested, including the
+production build's bundled worker URL. Target-device profiling remains useful;
+the worker avoids UI-thread blocking but does not promise faster numerical work.
+Probe-only incremental computation remains a possible measured optimization.
+WebAssembly/C++ is a later option for a measured kernel bottleneck; Julia is more
+appropriate for a separate research solver than a mandatory browser runtime.
 
 Model identities, limits, convergence and saved-state migration tests protect
 behavior; they do not establish engineering-design validity. The existing
@@ -49,3 +54,8 @@ latest picomatch was 4.0.7, within the affected range. Do not interpret the runt
 result as a clean development audit. Avoid processing untrusted glob patterns;
 track the upstream patch rather than blindly downgrade the toolchain to npm's
 suggested old major versions. Re-run the full audit when updating dependencies.
+
+Rechecked November 17, 2026: the [official GitHub advisory](https://github.com/advisories/GHSA-fc5q-39xc-vjpf)
+lists no patched release; the npm registry still reports 4.0.7 as latest. No
+unreviewed fork, suppressed audit result, or speculative downgrade was applied.
+The static production app does not accept glob patterns or ship this package.

@@ -1,7 +1,9 @@
 import { element as $, input, select } from './dom';
 import { PlaygroundModel } from './playground-model';
+import { PlaygroundComputeClient } from './playground-client';
+import type { PlaygroundAnalysis, PlaygroundComputation, FieldMap } from './playground-compute';
 type PlaygroundState = typeof PlaygroundModel.defaults;
-type Analysis = ReturnType<typeof PlaygroundModel.analyse>;
+type Analysis = PlaygroundAnalysis;
 type NumericKey = {
   [K in keyof PlaygroundState]: PlaygroundState[K] extends number ? K : never;
 }[keyof PlaygroundState];
@@ -161,12 +163,12 @@ type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>
       `<p class="chart-label">${ylabel}</p><svg class="viz" viewBox="0 0 ${w} ${h}" role="img" aria-label="${ylabel} versus ${xlabel}. Numeric summaries follow the plot.">${d}</svg><p class="chart-label x-label">${xlabel}</p>`;
   }
   let mapping: { w: number; h: number; zlim: number; xlim: number };
-  function magnet(o: Analysis) {
+  function magnet(o: Analysis, map: FieldMap) {
     const w = Math.max(240, $('pg-magnet').clientWidth),
       h = 250,
       g = o.g,
-      zlim = Math.max(0.35, g.l * 0.65, (Math.abs(state.pz) / 1000) * 1.1),
-      xlim = Math.max(0.15, (g.a + g.t) * 1.3, (Math.abs(state.px) / 1000) * 1.1),
+      zlim = map.zlim,
+      xlim = map.xlim,
       sx = (z: number) => ((z / zlim + 1) * w) / 2,
       sy = (x: number) => h / 2 - (x / xlim) * (h / 2 - 12);
     mapping = { w, h, zlim, xlim };
@@ -186,44 +188,64 @@ type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>
           d += `<line x1="${x}" x2="${x}" y1="${y0}" y2="${y1}" stroke="#432e21" opacity=".4"/>`;
         }
       }
-    for (let iz = -6; iz <= 6; iz++)
-      for (let ix = -3; ix <= 3; ix++) {
-        const z = (iz * zlim) / 7,
-          x = (ix * xlim) / 4;
-        if (M.inside(state, g, x, z)) continue;
-        const v = M.field(o.mesh, x, z);
-        if (!v || v.b < 1e-9) continue;
-        const xx = sx(z),
-          yy = sy(x),
-          dx = (7 * v.z) / v.b,
-          dy = (-7 * v.x) / v.b,
-          a = Math.atan2(dy, dx),
-          opacity = 0.25 + 0.75 * Math.min(1, v.b / Math.max(0.01, o.peak));
-        d += `<path d="M${xx - dx},${yy - dy}L${xx + dx},${yy + dy}m${-4 * Math.cos(a - 0.5)},${-4 * Math.sin(a - 0.5)}L${xx + dx},${yy + dy}l${-4 * Math.cos(a + 0.5)},${-4 * Math.sin(a + 0.5)}" stroke="var(--green)" stroke-opacity="${opacity}" fill="none"/>`;
-      }
+    for (const { x, z, vector: v } of map.samples) {
+      const xx = sx(z),
+        yy = sy(x),
+        dx = (7 * v.z) / v.b,
+        dy = (-7 * v.x) / v.b,
+        a = Math.atan2(dy, dx),
+        opacity = 0.25 + 0.75 * Math.min(1, v.b / Math.max(0.01, o.peak));
+      d += `<path d="M${xx - dx},${yy - dy}L${xx + dx},${yy + dy}m${-4 * Math.cos(a - 0.5)},${-4 * Math.sin(a - 0.5)}L${xx + dx},${yy + dy}l${-4 * Math.cos(a + 0.5)},${-4 * Math.sin(a + 0.5)}" stroke="var(--green)" stroke-opacity="${opacity}" fill="none"/>`;
+    }
     const px = sx(state.pz / 1000),
       py = sy(state.px / 1000);
     d += `<rect x="${px - 5}" y="${py - 5}" width="10" height="10" fill="var(--ink)" stroke="var(--paper)"/><circle data-pg-probe cx="${px}" cy="${py}" r="22" fill="transparent" style="touch-action:none;cursor:move"/>`;
     $('pg-magnet').innerHTML =
       `<svg class="viz" viewBox="0 0 ${w} ${h}" role="img" aria-label="Longitudinal field map of the coil. Bore radius ${state.a} mm, length ${state.l} mm. Probe at x ${state.px}, z ${state.pz} mm."><defs><linearGradient id="pg-copper" x2="0" y2="1"><stop stop-color="#ecc393"/><stop offset=".35" stop-color="#c18b56"/><stop offset="1" stop-color="#65462e"/></linearGradient></defs>${d}</svg>`;
   }
-  // A single entry bounds memory and reuses expensive physics on resize/keep redraws.
-  // The complete state is the key, so no changed model input can use stale results.
-  let analysisCache: { key: string; result: Analysis } | null = null;
-  function analyseCurrent(): Analysis {
-    const key = JSON.stringify(state);
-    if (analysisCache?.key === key) return analysisCache.result;
-    const result = M.analyse(state);
-    analysisCache = { key, result };
-    return result;
+  let computation: PlaygroundComputation | null = null;
+  let resultKey = '';
+  const stateKey = () => JSON.stringify(state);
+  const hasCurrentResult = () => computation !== null && resultKey === stateKey();
+  function computeStatus(status: 'pending' | 'ready' | 'fallback' | 'error') {
+    root.dataset.computeState = status;
+    root.setAttribute('aria-busy', String(status === 'pending'));
+    const unavailable = status === 'pending' || status === 'error';
+    button('pg-keep').disabled = unavailable;
+    const check = document.getElementById('integrated-check');
+    if (check instanceof HTMLButtonElement && !root.hidden) check.disabled = unavailable;
   }
+  const client = new PlaygroundComputeClient({
+    pending() {
+      computeStatus('pending');
+      $('pg-compute').textContent = 'Computing current design…';
+      $('pg-status').textContent = 'Computing current design. Keep and test will be ready shortly.';
+      $('pg-challenge').textContent = 'Computing current design…';
+    },
+    ready(next, key, fallback) {
+      if (key !== stateKey()) return;
+      computation = next;
+      resultKey = key;
+      result = next.analysis;
+      computeStatus(fallback ? 'fallback' : 'ready');
+      scheduleDraw();
+    },
+    failed() {
+      computation = null;
+      result = null;
+      resultKey = '';
+      computeStatus('error');
+      $('pg-status').textContent = 'Unable to compute this design. Change an input to try again.';
+      $('pg-challenge').textContent = 'Unable to compute this design.';
+      $('pg-compute').textContent = 'Unable to compute this design. Change an input to try again.';
+    },
+  });
   function draw() {
-    if (root.hidden) return;
+    if (root.hidden || !hasCurrentResult() || !computation) return;
     const start = performance.now();
-    result = analyseCurrent();
-    const o = result,
+    const o = computation.analysis,
       g = o.g;
-    magnet(o);
+    magnet(o, computation.map);
     const curves: Curve[] = [
       { points: o.points.map((p) => [p.position * 1000, p.b]), color: 'var(--green)' },
     ];
@@ -358,7 +380,7 @@ type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>
     $('pg-grade-story').textContent =
       `Bore field stays ${f(rows[1].end)} T. ${state.split === state.allocation ? 'Equal thickness and ampere-turn shares give equal current densities.' : 'A zone receiving more ampere-turn share than thickness share must carry higher current density.'} This table is an allocation calculation, not a solved conductor-limit optimization.`;
     $('pg-compute').textContent =
-      `${state.resolution * 32} segments in the field model; ${(performance.now() - start).toFixed(0)} ms for this update including comparison. Probe convergence uses twice that angular resolution. Fixed 4 × 8 winding quadrature error is not included.`;
+      `${state.resolution * 32} segments in the field model; ${(performance.now() - start).toFixed(0)} ms main-thread rendering (physics computation excluded). ${root.dataset.computeState === 'fallback' ? 'Worker unavailable; physics uses synchronous fallback.' : 'Physics computed in a background worker.'} Probe convergence uses twice that angular resolution. Fixed 4 × 8 winding quadrature error is not included.`;
   }
   function scheduleDraw() {
     if (!frame)
@@ -369,7 +391,7 @@ type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>
   }
   function schedule() {
     labels();
-    scheduleDraw();
+    client.request(state);
   }
   for (const [key, label] of knobs) {
     const range = input('pg-' + key),
@@ -380,7 +402,8 @@ type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>
       schedule();
     };
     range.onchange = () => {
-      $('pg-status').textContent = `${label}: ${state[key]}. ${$('pg-probe-story').textContent}`;
+      $('pg-status').textContent =
+        `${label}: ${state[key]}. ${hasCurrentResult() ? $('pg-probe-story').textContent : 'Computing current design.'}`;
     };
     number.onchange = () => {
       if (number.value === '' || !number.checkValidity()) {
@@ -412,7 +435,8 @@ type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>
     schedule();
   };
   $('pg-keep').onclick = () => {
-    saved = { state: { ...state }, result: analyseCurrent() };
+    if (!hasCurrentResult() || !computation) return;
+    saved = { state: { ...state }, result: computation.analysis };
     button('pg-restore').disabled = false;
     draw();
   };
@@ -492,6 +516,10 @@ type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>
     }
   };
   document.addEventListener('chapter-reset', () => {
+    client.invalidate();
+    computation = null;
+    resultKey = '';
+    result = null;
     state = { ...lessonDefaults };
     saved = null;
     imported = false;
@@ -503,6 +531,14 @@ type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>
   document.addEventListener('check-design-stage', (event) => {
     const e = event as StageCheck;
     if (e.detail.stage !== 6) return;
+    if (!hasCurrentResult()) {
+      e.detail.pass = false;
+      e.detail.message =
+        root.dataset.computeState === 'error'
+          ? 'Unable to compute this design. Change an input to try again.'
+          : 'Still computing this design; try again when ready.';
+      return;
+    }
     draw();
     e.detail.pass = result?.pass ?? false;
     e.detail.message = $('pg-challenge').textContent ?? '';
@@ -516,6 +552,9 @@ type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>
       scheduleDraw();
     }
   }).observe(root);
+  window.addEventListener('pagehide', (event) => {
+    if (!event.persisted) client.dispose();
+  });
   labels();
   activate();
 })();

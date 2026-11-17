@@ -21,6 +21,7 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium firefox webkit
       - run: npm run test:browser
+      - run: npm run test:production
       - uses: actions/upload-artifact@v7.0.2
         if: failure()
         with:
@@ -28,4 +29,5 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            test-results-production/
           retention-days: 7

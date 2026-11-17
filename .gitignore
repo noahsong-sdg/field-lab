@@ -10,3 +10,4 @@ UX-REVIEW.md
 dist/
 playwright-report/
 test-results/
+test-results-production/
