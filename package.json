@@ -4,11 +4,31 @@
   "private": true,
   "description": "Educational magnet field experiments",
   "scripts": {
-    "serve": "python3 -m http.server 8765 --bind 127.0.0.1",
-    "test": "node test.cjs && node design-test.cjs && node playground-test.cjs && node integrated-test.cjs && node references-test.cjs",
-    "test:unit": "FIELD_LAB_UNIT_ONLY=1 node test.cjs && FIELD_LAB_UNIT_ONLY=1 node design-test.cjs && FIELD_LAB_UNIT_ONLY=1 node playground-test.cjs && FIELD_LAB_UNIT_ONLY=1 node integrated-test.cjs"
+    "dev": "vite",
+    "serve": "vite --host 127.0.0.1 --port 8765",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test:unit": "node --import tsx test.mjs && node --import tsx design-test.mjs && node --import tsx playground-test.mjs && node --import tsx integrated-test.mjs",
+    "test:browser": "playwright test",
+    "test": "npm run test:unit && npm run test:browser",
+    "check": "npm run typecheck && npm run lint && npm run test:unit && npm run build"
   },
   "devDependencies": {
-    "playwright": "1.56.1"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^24.19.2",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vite": "^8.3.8"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=24"
   }
 }

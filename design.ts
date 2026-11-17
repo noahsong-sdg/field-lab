@@ -1,0 +1,297 @@
+import { element as $, input, select } from './dom';
+type PlotLine = { points: number[][]; color: string; dash?: boolean };
+import { DesignModel } from './design-model';
+
+type StageCheck = CustomEvent<{ stage: number; pass: boolean; message: string }>;
+(() => {
+  const M = DesignModel;
+  const root = $('design-desk');
+  const control = (
+    id: string,
+    label: string,
+    min: number,
+    max: number,
+    step: number,
+    value: number,
+    unit: string,
+  ) =>
+    `<label for="${id}">${label} <output id="${id}-value">${value} ${unit}</output></label><input id="${id}" type="range" min="${min}" max="${max}" step="${step}" value="${value}" data-unit="${unit}">`;
+  root.innerHTML = `<div class="design-content">
+    <h2 id="design-title" tabindex="-1">Read the book’s design curves</h2>
+    <p>Field geometry tells you what a winding can produce. Its critical-current curve tells you how far you can energize it. Explore the book’s figures, then connect overall current density to a real conductor cross-section.</p>
+    <p class="source-note">Book reconstruction · NbTi at 4.2 K · piecewise interpolation, not a manufacturer qualification curve. These book examples use their stated geometry; the conductor stage uses a separate finite-coil model.</p>
+    <section class="design-module" data-design-stage="5" aria-labelledby="load-title"><p class="eyebrow">Figure 3.4</p><h2 id="load-title">The peak field sets the limit</h2>
+    <div class="design-grid"><div><div id="load-plot"></div><p class="legend">━ Green: critical overall J · ┄ Blue: central-field load line · ━ Gold: peak-field load line · ● operating point · □ limiting intersection</p><p id="load-story"></p></div>
+    <div class="design-controls"><label for="load-preset">Book design</label><select id="load-preset">${M.presets.map((p, i) => `<option value="${i}">${p.name}</option>`).join('')}<option value="custom">Custom comparison</option></select>
+    ${control('load-k', 'Central-field coefficient', 0.015, 0.04, 0.0005, 0.02, 'T per A/mm²')}
+    ${control('load-ratio', 'Peak / central field', 1, 1.6, 0.01, 1.34, '')}
+    ${control('load-j', 'Operating overall J', 0, 400, 5, 250, 'A/mm²')}
+    <div id="load-metrics" class="readout"></div><p id="load-geometry" class="fixed"></p><button type="button" id="load-margin">Use at least 20% margin</button><p class="fixed">Current margin = 1 − Jop / Jlimit along this load line. It is not a temperature margin or a quench-stability calculation.</p></div></div>
+    <section><h3>How to read this plot</h3><ol><li>Start at the origin. At fixed geometry, both central and peak fields grow linearly with current density.</li><li>The peak-field line intersects the falling critical curve first. That intersection sets the ideal short-sample limit.</li><li>Project horizontally to the central-field line to find the useful bore field at the same current.</li><li>Compare (b) and (c): lowering the peak-field ratio can save winding volume, even when a purely geometric minimum-volume rule says otherwise.</li></ol><p>B₀ = kJ, Bpeak = rkJ, and Jlimit = Jc(Bpeak). In (a), 250 A/mm² gives B₀ ≈ 5 T and Bpeak ≈ 6.7 T. At the originally intended 300 A/mm², the winding exceeds the reconstructed critical curve.</p><div id="preset-table"></div></section></section>
+    <section class="design-module" data-design-stage="7" aria-labelledby="grade-title"><p class="eyebrow">Figure 3.5</p><h2 id="grade-title">Use the low-field conductor more effectively</h2><div class="design-grid"><div><div id="grade-plot"></div><p class="legend">━ Green: same critical curve · colored solid segments: successive winding sections · ┄ dashed: ungraded winding</p><p id="grade-story"></p></div><div class="design-controls">${control('grade-n', 'Concentric sections', 1, 8, 1, 4, 'sections')}<p>Fixed total radial thickness: <strong>32 mm</strong>. Start outside, where the background field is zero, and work inward. Each section adds ΔB = μ₀JΔr.</p><div id="grade-metrics" class="readout"></div><p class="fixed">Infinite-solenoid approximation. Every section runs at its own critical limit: there is no operating margin. Equal series current requires different conductor areas to achieve these different J values.</p></div></div><details><summary>Section-by-section values & assumptions</summary><div id="grade-table"></div><p>Wilson reports about 9.2 T for four sections versus 7.6 T without subdivision (pp.24–25). This reconstruction uses μ₀ and exactly 32 mm; the book rounds each 8 mm section to 1 T per 100 A/mm². Finite coils need a coupled peak-field calculation for each section; this plot does not establish their performance.</p></details></section>
+    <section class="design-module" data-design-stage="6" aria-labelledby="spec-title"><p class="eyebrow">Conductor worksheet</p><h2 id="spec-title">Current density needs an area definition</h2><div class="design-grid"><div><div id="area-visual"></div><p id="area-story"></p><p>Joverall uses the complete winding area, including insulation and voids. Jwire uses the metal conductor area. Jsuperconductor uses only the superconducting fraction. Never compare these numbers without checking the denominator.</p></div><div class="design-controls">
+    ${control('wire-area', 'Bare conductor area', 0.25, 4, 0.05, 1, 'mm²')}${control('wire-pack', 'Conductor packing fraction', 0.5, 0.9, 0.01, 0.75, '')}${control('wire-cu', 'Copper : superconductor area', 0.5, 3, 0.1, 1.5, ': 1')}
+    <div id="area-metrics" class="readout"></div><p class="fixed">Uses the overall J selected in Figure 3.4. These are hypothetical round-wire inputs. Changing them only converts area/current definitions; it does not rescale the book’s already-diluted critical curve.</p></div></div></section>
+    <section class="design-module" data-design-stage="6"><p class="eyebrow">Material reference · conditions matter</p><h2>Three conductor families</h2><div class="material-grid">
+    <article><h3>NbTi</h3><p class="material-tag">Book baseline · 4.2 K</p><dl><dt>Overall critical J at 6 T</dt><dd>300 A/mm²</dd><dt>Overall critical J at 6.7 T</dt><dd>250 A/mm²</dd><dt>Overall critical J at 7.5 T</dt><dd>200 A/mm²</dd></dl><p>Wilson’s typical small-magnet winding already includes an allowance for stabilizer and insulation. These are historical example values, not a specification for arbitrary NbTi wire.</p><p class="fixed">Source: supplied book, pp.22–23, Fig.3.4.</p></article>
+    <article><h3>Nb₃Sn</h3><p class="material-tag">Modern accelerator example</p><dl><dt>CERN quadrupole target current</dt><dd>16.53 kA</dd><dt>Test temperatures</dt><dd>1.9 K and 4.5 K</dd><dt>Assembly concern</dt><dd>Brittle conductor; rigid coils</dd></dl><p>The current belongs to a complete magnet design, not a universal wire Ic. Geometry, conductor area, strain and field are needed before it can be compared with the NbTi curve.</p><a href="https://home.cern/hilumi-news-successful-test-paves-way-magnet-production-cern/" target="_blank" rel="noreferrer">CERN test report · 2023 ↗</a></article>
+    <article><h3>REBCO tape</h3><p class="material-tag">SuperPower AP product example</p><dl><dt>Ic at 77 K, self-field</dt><dd>120–160 A per 4 mm width</dd><dt>Measurement criterion</dt><dd>1 μV/cm</dd><dt>Available substrate thickness</dt><dd>30 or 50 μm</dd><dt>Optional total copper thickness</dt><dd>10–110 μm</dd></dl><p>Self-field is not a high applied field. Tape orientation and temperature matter; substrate thickness is not total tape thickness. A tape cannot use the round-wire worksheet without changing the geometry.</p><a href="https://www.superpower-inc.com/specification.aspx" target="_blank" rel="noreferrer">Manufacturer specifications ↗</a></article></div></section>
+    <details><summary>Sources, curve anchors & reconstruction limits</summary><p>Primary reading: M. N. Wilson, <em>Superconducting Magnets</em>, printed pp.22–25 (PDF pp.38–41), Figs.3.3–3.5. The peak-field ratios for presets are taken from the text, not recomputed from a finite-element model. Curve segments are straight interpolations. Material reference pages checked October 5, 2026.</p><div id="anchor-table"></div><p>The low-field endpoint and zero-current endpoint are illustrative extensions. Neither the curve’s endpoint nor its interpolation is a measurement of the upper critical field. No temperature scaling, strain law, protection, cooling, or thermal runaway model is included.</p></details>
+    <p id="design-status" class="sr-only" role="status" aria-live="polite"></p></div>`;
+  const table = (headers: string[], rows: (string | number)[][]) =>
+    `<table><thead><tr>${headers.map((h) => `<th scope="col">${h}</th>`).join('')}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((v, i) => (i ? `<td>${v}</td>` : `<th scope="row">${v}</th>`)).join('')}</tr>`).join('')}</tbody></table>`;
+  const metrics = (rows: string[][]) =>
+    rows.map(([k, v]) => `<div><span>${k}</span><strong>${v}</strong></div>`).join('');
+  function plot(
+    id: string,
+    lines: PlotLine[],
+    marks: { b: number; j: number; color: string; square?: boolean }[],
+    description: string,
+    xmax = 12,
+  ) {
+    const w = Math.max(240, $(id).clientWidth),
+      scale = parseFloat(getComputedStyle(root).fontSize) / 14,
+      h = 260 * scale,
+      left = 46 * scale,
+      right = w - 12,
+      top = 15,
+      bottom = h - 32 * scale;
+    const x = (b: number) => left + (b / xmax) * (right - left),
+      y = (j: number) => bottom - (j / 700) * (bottom - top);
+    let d = '';
+    for (const j of [0, 200, 400, 600])
+      d += `<line class="design-gridline" x1="${left}" x2="${right}" y1="${y(j)}" y2="${y(j)}"/><text x="${left - 6}" y="${y(j) + 4}" text-anchor="end">${j}</text>`;
+    for (const b of [0, xmax / 2, xmax])
+      d += `<text x="${x(b)}" y="${bottom + 20 * scale}" text-anchor="${b === 0 ? 'start' : b === xmax ? 'end' : 'middle'}">${b.toFixed(1)}</text>`;
+    for (const l of lines)
+      d += `<path d="${l.points.map(([b, j], i) => `${i ? 'L' : 'M'}${x(b)},${y(j)}`).join(' ')}" fill="none" stroke="${l.color}" stroke-width="2" ${l.dash ? 'stroke-dasharray="6 4"' : ''}/>`;
+    for (const m of marks)
+      d += m.square
+        ? `<rect x="${x(m.b) - 5}" y="${y(m.j) - 5}" width="10" height="10" fill="var(--panel)" stroke="${m.color}" stroke-width="2"/>`
+        : `<circle cx="${x(m.b)}" cy="${y(m.j)}" r="5" fill="${m.color}" stroke="var(--paper)" stroke-width="2"/>`;
+    $(id).innerHTML =
+      `<p class="chart-label">Overall J (A/mm²)</p><svg class="viz" viewBox="0 0 ${w} ${h}" role="img" aria-label="${description}">${d}</svg><p class="chart-label x-label">Magnetic field B (T)</p>`;
+  }
+  const curve = { points: M.points, color: 'var(--green)' };
+  const val = (id: string) => +input(id).value;
+  const loadLine = (k: number, color: string, xmax = 12): PlotLine => ({
+    points: [
+      [0, 0],
+      [Math.min(xmax, k * 700), Math.min(700, xmax / k)],
+    ],
+    color,
+  });
+  function drawLoad() {
+    const k = val('load-k'),
+      r = val('load-ratio'),
+      j = val('load-j'),
+      o = M.load(k, r, j),
+      xmax = Math.max(12, Math.ceil(o.peak));
+    const central = loadLine(k, 'var(--blue)', xmax);
+    central.dash = true;
+    plot(
+      'load-plot',
+      [
+        curve,
+        central,
+        loadLine(k * r, 'var(--gold)', xmax),
+        {
+          points: [
+            [k * o.limit, o.limit],
+            [k * r * o.limit, o.limit],
+          ],
+          color: 'var(--muted)',
+          dash: true,
+        },
+      ],
+      [
+        { b: o.peak, j, color: o.margin < 0 ? 'var(--rust)' : 'var(--gold)' },
+        { b: k * r * o.limit, j: o.limit, color: 'var(--ink)', square: true },
+      ],
+      `Operating peak field ${o.peak.toFixed(2)} T at ${j} A/mm². Limiting current density ${o.limit.toFixed(1)} A/mm².`,
+      xmax,
+    );
+    $('load-metrics').innerHTML = metrics([
+      ['Useful bore field', `${o.central.toFixed(2)} T`],
+      ['Peak winding field', `${o.peak.toFixed(2)} T`],
+      ['Limiting overall J', `${o.limit.toFixed(1)} A/mm²`],
+      ['Current margin', `${o.margin.toFixed(1)}%`],
+    ]);
+    $('load-story').textContent =
+      `${o.margin < -0.05 ? 'Above the reconstructed conductor limit.' : o.margin < 0.05 ? 'At the reconstructed conductor limit: no current margin.' : 'Below the reconstructed conductor limit.'} The greatest central field on this load line is ${o.maxCentral.toFixed(2)} T. At the operating peak field, the curve allows ${o.localCritical.toFixed(1)} A/mm².`;
+    const p = M.presets[Number(select('load-preset').value)];
+    $('load-geometry').textContent = p
+      ? `Book geometry: bore diameter 150 mm; outer radius ${(75 * p.alpha).toFixed(1)} mm; full length ${(150 * p.beta).toFixed(1)} mm; winding volume ${M.volume(p).toFixed(2)} L. Rounded book coefficient k.`
+      : 'Custom coefficients: no geometry or winding volume is inferred from these two numbers alone.';
+    drawArea();
+  }
+  function drawGrade() {
+    const n = val('grade-n'),
+      rows = M.graded(n),
+      single = M.graded(1)[0],
+      colors = ['var(--blue)', 'var(--gold)', 'var(--rust)', 'var(--ink)'];
+    plot(
+      'grade-plot',
+      [
+        curve,
+        {
+          points: [
+            [0, 0],
+            [single.end, single.j],
+          ],
+          color: 'var(--muted)',
+          dash: true,
+        },
+        ...rows.map((r, i) => ({
+          points: [
+            [r.background, 0],
+            [r.end, r.j],
+            [r.end, 0],
+          ],
+          color: colors[i % 4],
+        })),
+      ],
+      rows.map((r, i) => ({ b: r.end, j: r.j, color: colors[i % 4] })),
+      `${n} sections produce ${rows.at(-1)!.end.toFixed(2)} T; ungraded winding ${single.end.toFixed(2)} T.`,
+    );
+    $('grade-metrics').innerHTML = metrics([
+      ['Graded bore field', `${rows.at(-1)!.end.toFixed(2)} T`],
+      ['Ungraded reference', `${single.end.toFixed(2)} T`],
+      ['Section thickness', `${(32 / n).toFixed(2)} mm`],
+    ]);
+    $('grade-story').textContent =
+      `The outside section can carry ${rows[0].j.toFixed(1)} A/mm². ${n > 1 ? `The innermost section sees the accumulated background field and is limited to ${rows.at(-1)!.j.toFixed(1)} A/mm².` : 'With one section, graded and ungraded results coincide.'}`;
+    $('grade-table').innerHTML = table(
+      ['Outside → inside', 'Background (T)', 'J (A/mm²)', 'Inner field (T)'],
+      rows.map((r) => [r.section, r.background.toFixed(2), r.j.toFixed(1), r.end.toFixed(2)]),
+    );
+  }
+  function drawArea() {
+    const j = val('load-j'),
+      a = val('wire-area'),
+      f = val('wire-pack'),
+      ratio = val('wire-cu'),
+      c = M.conductor(j, a, f, ratio);
+    const radius = 50 * Math.sqrt(f),
+      sc = radius / Math.sqrt(1 + ratio);
+    $('area-visual').innerHTML =
+      `<svg class="viz area-section" viewBox="0 0 240 135" role="img" aria-label="Equivalent area diagram: ${(100 * f).toFixed(0)} percent metal, ${((100 * f) / (1 + ratio)).toFixed(0)} percent superconductor of the winding cell. This concentric drawing is not a filament layout."><circle cx="120" cy="65" r="50" fill="var(--surface-raised)" stroke="var(--axis)"/><circle cx="120" cy="65" r="${radius}" fill="var(--gold)"/><circle cx="120" cy="65" r="${sc}" fill="var(--blue)"/></svg><p class="legend">Blue: superconducting area · gold: copper · slate: insulation/void allowance. Equivalent areas, not filament arrangement.</p>`;
+    $('area-metrics').innerHTML = metrics([
+      ['Transport current', `${c.current.toFixed(1)} A`],
+      ['Wire J', `${c.wireJ.toFixed(1)} A/mm²`],
+      ['Superconductor J', `${c.superJ.toFixed(1)} A/mm²`],
+    ]);
+    $('area-story').textContent =
+      `At overall J = ${j} A/mm², each turn occupies ${(a / f).toFixed(3)} mm² of winding area. Its ${a.toFixed(2)} mm² metal cross-section contains ${c.superArea.toFixed(3)} mm² superconductor. I = Joverall × Awire / packing fraction.`;
+  }
+  function updateLabels() {
+    root.querySelectorAll<HTMLInputElement>('input[type=range][data-unit]').forEach((el) => {
+      const text = `${el.value} ${el.dataset.unit}`;
+      $(el.id + '-value').textContent = text;
+      el.setAttribute('aria-valuetext', text);
+    });
+  }
+  root.querySelectorAll<HTMLInputElement>('input[type=range][data-unit]').forEach((el) => {
+    el.oninput = () => {
+      if (['load-k', 'load-ratio'].includes(el.id)) select('load-preset').value = String('custom');
+      updateLabels();
+      if (el.id === 'grade-n') drawGrade();
+      else if (el.id.startsWith('wire-')) drawArea();
+      else drawLoad();
+    };
+    el.onchange = () => {
+      $('design-status').textContent =
+        el.id === 'grade-n'
+          ? $('grade-story').textContent
+          : el.id.startsWith('wire-')
+            ? $('area-story').textContent
+            : $('load-story').textContent;
+    };
+  });
+  select('load-preset').onchange = () => {
+    const p = M.presets[Number(select('load-preset').value)];
+    if (!p) return;
+    input('load-k').value = String(p.k);
+    input('load-ratio').value = String(p.ratio);
+    input('load-j').value = String(Math.round(p.j / 5) * 5);
+    updateLabels();
+    drawLoad();
+  };
+  $('load-margin').onclick = () => {
+    input('load-j').value = String(
+      Math.floor((M.limit(val('load-k') * val('load-ratio')) * 0.8) / 5) * 5,
+    );
+    updateLabels();
+    drawLoad();
+    $('design-status').textContent = $('load-story').textContent;
+  };
+  $('preset-table').innerHTML = table(
+    ['Fig.3.4', 'Peak / centre', 'Volume (L)', 'Model max B₀ (T)'],
+    M.presets.map((p, i) => [
+      'abc'[i],
+      p.ratio,
+      M.volume(p).toFixed(2),
+      M.load(p.k, p.ratio, 0).maxCentral.toFixed(2),
+    ]),
+  );
+  $('anchor-table').innerHTML = table(
+    ['B (T)', 'Overall J (A/mm²)', 'Provenance'],
+    M.points.map(([b, j]) => [
+      b,
+      j,
+      [4.2, 6, 6.7, 7.5].includes(b)
+        ? 'Stated in book text'
+        : b === 7.6
+          ? 'Derived from rounded ungraded book example'
+          : [8.3, 9.2].includes(b)
+            ? 'Approximate Fig.3.5 reconstruction'
+            : 'Illustrative endpoint',
+    ]),
+  );
+  let width = 0,
+    fontSize = 0;
+  let resizeFrame = 0;
+  new ResizeObserver(() => {
+    const size = parseFloat(getComputedStyle(root).fontSize);
+    if (!root.hidden && (root.clientWidth !== width || size !== fontSize)) {
+      width = root.clientWidth;
+      fontSize = size;
+      if (!resizeFrame)
+        resizeFrame = requestAnimationFrame(() => {
+          resizeFrame = 0;
+          if (root.hidden) return;
+          drawLoad();
+          drawGrade();
+        });
+    }
+  }).observe(root);
+  const activate = () => {
+    if (!root.hidden) {
+      root
+        .querySelectorAll<HTMLElement>('[data-design-stage]')
+        .forEach(
+          (el) => (el.hidden = el.dataset.designStage !== document.body.dataset.lessonStage),
+        );
+      drawLoad();
+      drawGrade();
+    }
+  };
+  document.addEventListener('chapter-reset', () => {
+    root
+      .querySelectorAll<HTMLInputElement>('input')
+      .forEach((el) => (el.value = String(el.defaultValue)));
+    select('load-preset').selectedIndex = 0;
+    updateLabels();
+    activate();
+  });
+  document.addEventListener('lesson-stage', activate);
+  document.addEventListener('check-design-stage', (event) => {
+    const e = event as StageCheck;
+    if (e.detail.stage !== 5) return;
+    const o = M.load(val('load-k'), val('load-ratio'), val('load-j'));
+    e.detail.pass = o.central >= 4 && o.margin >= 20 - 1e-8;
+    e.detail.message = `Centre ${o.central.toFixed(2)} T (minimum 4.0 T); current margin ${o.margin.toFixed(1)}% (minimum 20%). The peak-field line sets the limit.`;
+  });
+  activate();
+  updateLabels();
+})();
