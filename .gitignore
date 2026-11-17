@@ -5,3 +5,8 @@ node_modules/
 IMPLEMENTATION-NOTES.md
 UX-REVIEW.md
 .DS_Store
+
+# Build and test artifacts
+dist/
+playwright-report/
+test-results/
